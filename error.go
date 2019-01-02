@@ -91,7 +91,7 @@ func New(e interface{}) *Error {
 // fmt.Errorf("%v"). The skip parameter indicates how far up the stack
 // to start the stacktrace. 0 is from the current call, 1 from its caller, etc.
 func Wrap(e interface{}, skip int) *Error {
-	if e == nil {
+	if e == nil || e == (*Error)(nil) {
 		return nil
 	}
 
@@ -121,7 +121,7 @@ func Wrap(e interface{}, skip int) *Error {
 // up the stack to start the stacktrace. 0 is from the current call,
 // 1 from its caller, etc.
 func WrapPrefix(e interface{}, prefix string, skip int) *Error {
-	if e == nil {
+	if e == nil || e == (*Error)(nil) {
 		return nil
 	}
 

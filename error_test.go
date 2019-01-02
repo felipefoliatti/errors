@@ -132,6 +132,10 @@ func TestWrapError(t *testing.T) {
 	if Wrap(nil, 0) != nil {
 		t.Errorf("Constructor with nil failed")
 	}
+
+	if Wrap((*Error)(nil), 0) != nil {
+		t.Errorf("Constructor with typed nil failed")
+	}
 }
 
 func TestWrapPrefixError(t *testing.T) {
@@ -161,6 +165,10 @@ func TestWrapPrefixError(t *testing.T) {
 
 	if WrapPrefix(nil, "prefix", 0) != nil {
 		t.Errorf("Constructor with nil failed")
+	}
+
+	if WrapPrefix((*Error)(nil), "prefix", 0) != nil {
+		t.Errorf("Constructor with typed nil failed")
 	}
 
 	if !strings.HasSuffix(original.StackFrames()[0].File, "error_test.go") || strings.HasSuffix(original.StackFrames()[1].File, "error_test.go") {
