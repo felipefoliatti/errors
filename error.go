@@ -59,6 +59,7 @@ var MaxStackDepth = 50
 // wherever the builtin error interface is expected.
 type Error struct {
 	Err    error
+	Code   *int
 	stack  []uintptr
 	frames []StackFrame
 	prefix string
@@ -139,6 +140,35 @@ func WrapPrefix(e interface{}, prefix string, skip int) *Error {
 
 }
 
+// WrapPrefixCode makes an Error from the given value. If that value is already an
+// error then it will be used directly, if not, it will be passed to
+// fmt.Errorf("%v"). The prefix parameter is used to add a prefix to the
+// error message when calling Error(). The code parameter is the custom application error code
+// that application use - it can be any value. The skip parameter indicates how far
+// up the stack to start the stacktrace. 0 is from the current call,
+// 1 from its caller, etc.
+func WrapPrefixCode(e interface{}, prefix string, code *int, skip int) *Error {
+	if e == nil || e == (*Error)(nil) {
+		return nil
+	}
+
+	err := Wrap(e, 1+skip)
+
+	if err.prefix != "" {
+		prefix = fmt.Sprintf("%s: %s", prefix, err.prefix)
+	}
+
+	err.Code = code
+
+	return &Error{
+		Err:    err.Err,
+		Code:   code,
+		stack:  err.stack,
+		prefix: prefix,
+	}
+
+}
+
 // Is detects whether the error is equal to a given error. Errors
 // are considered equal by this function if they are the same object,
 // or if they both contain the same error inside an errors.Error.
@@ -170,8 +200,13 @@ func Errorf(format string, a ...interface{}) *Error {
 func (err *Error) Error() string {
 
 	msg := err.Err.Error()
-	if err.prefix != "" {
+
+	if err.prefix != "" && err.Code != nil {
+		msg = fmt.Sprintf("%s (%d): %s", err.prefix, *err.Code, msg)
+	} else if err.prefix != "" {
 		msg = fmt.Sprintf("%s: %s", err.prefix, msg)
+	} else if err.Code != nil {
+		msg = fmt.Sprintf("(%d): %s", err.Code, msg)
 	}
 
 	return msg
