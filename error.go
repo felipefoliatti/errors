@@ -204,6 +204,15 @@ func (err *Error) Has(e interface{}) bool {
 	return false
 }
 
+// Root return the primitive error object
+func (err *Error) Root() error {
+	if _, ok := err.Err.(*Error); !ok {
+		return err.Err.(error)
+	} else {
+		return err.Err.(*Error).Root()
+	}
+}
+
 // Error returns the underlying error's message.
 func (err *Error) Error() string {
 

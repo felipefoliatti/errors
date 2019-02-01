@@ -241,6 +241,41 @@ func TestHas(t *testing.T) {
 	}
 }
 
+func TestRoot(t *testing.T) {
+
+	err := New(&CustomError{})
+
+	if _, ok := err.Root().(*CustomError); !ok {
+		t.Errorf("Wrong 'Root'")
+	}
+
+	err = New(err)
+
+	if _, ok := err.Root().(*CustomError); !ok {
+		t.Errorf("Wrong 'Root' first level")
+	}
+
+	wrap := WrapPrefix(err, "prefix", 0)
+
+	if _, ok := wrap.Root().(*CustomError); !ok {
+		t.Errorf("Wrong 'Root' second level")
+	}
+	wwrap := WrapPrefix(wrap, "prefix", 0)
+
+	if _, ok := wwrap.Root().(*CustomError); !ok {
+		t.Errorf("Wrong 'Root' third level")
+	}
+}
+
+type CustomError struct {
+	Number  uint16
+	Message string
+}
+
+func (me *CustomError) Error() string {
+	return fmt.Sprintf("Error %d: %s", me.Number, me.Message)
+}
+
 func ExampleErrorf(x int) (int, error) {
 	if x%2 == 1 {
 		return 0, Errorf("can only halve even numbers, got %d", x)
