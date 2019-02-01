@@ -214,6 +214,33 @@ func TestWrapPrefixCodeError(t *testing.T) {
 	}
 }
 
+func TestHas(t *testing.T) {
+
+	err := New(io.ErrUnexpectedEOF)
+
+	if !err.Has(io.ErrUnexpectedEOF) {
+		t.Errorf("Wrong 'Has' first level")
+	}
+
+	err = New(err)
+
+	if !err.Has(io.ErrUnexpectedEOF) {
+		t.Errorf("Wrong 'Has' second level")
+	}
+
+	wrap := WrapPrefix(err, "prefix", 0)
+
+	if !wrap.Has(io.ErrUnexpectedEOF) {
+		t.Errorf("Wrong 'Has' third level")
+	}
+
+	wwrap := WrapPrefix(wrap, "prefix", 0)
+
+	if !wwrap.Has(io.ErrUnexpectedEOF) {
+		t.Errorf("Wrong 'Has' forth level")
+	}
+}
+
 func ExampleErrorf(x int) (int, error) {
 	if x%2 == 1 {
 		return 0, Errorf("can only halve even numbers, got %d", x)

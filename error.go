@@ -190,6 +190,20 @@ func Errorf(format string, a ...interface{}) *Error {
 	return Wrap(fmt.Errorf(format, a...), 1)
 }
 
+// Has verifies if the error type given is present in any level
+func (err *Error) Has(e interface{}) bool {
+
+	if reflect.TypeOf(err.Err) == reflect.TypeOf(e) {
+		return true
+	} else {
+		if ee, ok := err.Err.(*Error); ok {
+			return ee.Has(e)
+		}
+	}
+
+	return false
+}
+
 // Error returns the underlying error's message.
 func (err *Error) Error() string {
 
