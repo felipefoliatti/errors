@@ -102,7 +102,7 @@ func Wrap(e interface{}, skip int) *Error {
 	case *Error:
 		return e
 	case error:
-		err = e
+		err = e.(error)
 	default:
 		err = fmt.Errorf("%v", e)
 	}
@@ -128,12 +128,12 @@ func WrapPrefix(e interface{}, prefix string, skip int) *Error {
 
 	err := Wrap(e, 1+skip)
 
-	if err.prefix != "" {
-		prefix = fmt.Sprintf("%s: %s", prefix, err.prefix)
-	}
+	// if err.prefix != "" {
+	// 	prefix = fmt.Sprintf("%s: %s", prefix, err.prefix)
+	// }
 
 	return &Error{
-		Err:    err.Err,
+		Err:    err,
 		stack:  err.stack,
 		prefix: prefix,
 	}
@@ -147,22 +147,16 @@ func WrapPrefix(e interface{}, prefix string, skip int) *Error {
 // that application use - it can be any value. The skip parameter indicates how far
 // up the stack to start the stacktrace. 0 is from the current call,
 // 1 from its caller, etc.
-func WrapPrefixCode(e interface{}, prefix string, code *int, skip int) *Error {
+func WrapPrefixCode(e interface{}, prefix string, code int, skip int) *Error {
 	if e == nil || e == (*Error)(nil) {
 		return nil
 	}
 
 	err := Wrap(e, 1+skip)
 
-	if err.prefix != "" {
-		prefix = fmt.Sprintf("%s: %s", prefix, err.prefix)
-	}
-
-	err.Code = code
-
 	return &Error{
-		Err:    err.Err,
-		Code:   code,
+		Err:    err,
+		Code:   &code,
 		stack:  err.stack,
 		prefix: prefix,
 	}
@@ -199,15 +193,38 @@ func Errorf(format string, a ...interface{}) *Error {
 // Error returns the underlying error's message.
 func (err *Error) Error() string {
 
-	msg := err.Err.Error()
+	//msg := err.Err.Error()
+	msg := ""
 
-	if err.prefix != "" && err.Code != nil {
-		msg = fmt.Sprintf("%s (%d): %s", err.prefix, *err.Code, msg)
-	} else if err.prefix != "" {
-		msg = fmt.Sprintf("%s: %s", err.prefix, msg)
-	} else if err.Code != nil {
-		msg = fmt.Sprintf("(%d): %s", err.Code, msg)
+	if err.prefix != "" {
+		msg += err.prefix
 	}
+
+	if err.Code != nil {
+		space := ""
+
+		if msg != "" {
+			space = " "
+		}
+
+		msg += fmt.Sprintf("%s(%d)", space, *err.Code)
+	}
+
+	if msg != "" {
+		msg += ": "
+	}
+
+	if err.Err != nil {
+		msg += err.Err.Error()
+	}
+
+	// if err.prefix != "" && err.Code != nil {
+	// 	msg = fmt.Sprintf("%s (%d): %s", err.prefix, *err.Code, msg)
+	// } else if err.prefix != "" {
+	// 	msg = fmt.Sprintf("%s: %s", err.prefix, msg)
+	// } else if err.Code != nil {
+	// 	msg = fmt.Sprintf("(%d): %s", err.Code, msg)
+	// }
 
 	return msg
 }

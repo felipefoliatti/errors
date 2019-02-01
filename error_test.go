@@ -155,7 +155,7 @@ func TestWrapPrefixError(t *testing.T) {
 	prefixed := WrapPrefix(e, "prefix", 0)
 	original := e.(*Error)
 
-	if prefixed.Err != original.Err || !reflect.DeepEqual(prefixed.stack, original.stack) || !reflect.DeepEqual(prefixed.frames, original.frames) || prefixed.Error() != "prefix: prefix: hi" {
+	if prefixed.Err.(*Error) != original || !reflect.DeepEqual(prefixed.Err.(*Error).stack, original.stack) || !reflect.DeepEqual(prefixed.Err.(*Error).frames, original.frames) || prefixed.Error() != "prefix: prefix: hi" {
 		t.Errorf("Constructor with an Error failed")
 	}
 
@@ -168,6 +168,44 @@ func TestWrapPrefixError(t *testing.T) {
 	}
 
 	if WrapPrefix((*Error)(nil), "prefix", 0) != nil {
+		t.Errorf("Constructor with typed nil failed")
+	}
+
+	if !strings.HasSuffix(original.StackFrames()[0].File, "error_test.go") || strings.HasSuffix(original.StackFrames()[1].File, "error_test.go") {
+		t.Errorf("Skip failed")
+	}
+}
+
+func TestWrapPrefixCodeError(t *testing.T) {
+
+	e := func() error {
+		return WrapPrefixCode("hi", "prefix", 130, 1)
+	}()
+
+	if e.Error() != "prefix (130): hi" {
+		t.Errorf("Constructor with a string failed")
+	}
+
+	if WrapPrefixCode(fmt.Errorf("yo"), "prefix", 140, 0).Error() != "prefix (140): yo" {
+		t.Errorf("Constructor with an error failed")
+	}
+
+	prefixed := WrapPrefixCode(e, "prefix", 200, 0)
+	original := e.(*Error)
+
+	if prefixed.Err.(*Error) != original || !reflect.DeepEqual(prefixed.Err.(*Error).stack, original.stack) || !reflect.DeepEqual(prefixed.Err.(*Error).frames, original.frames) || prefixed.Error() != "prefix (200): prefix (130): hi" {
+		t.Errorf("Constructor with an Error failed")
+	}
+
+	if original.Error() == prefixed.Error() {
+		t.Errorf("WrapPrefix changed the original error")
+	}
+
+	if WrapPrefixCode(nil, "prefix", 190, 0) != nil {
+		t.Errorf("Constructor with nil failed")
+	}
+
+	if WrapPrefixCode((*Error)(nil), "prefix", 191, 0) != nil {
 		t.Errorf("Constructor with typed nil failed")
 	}
 
