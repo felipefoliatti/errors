@@ -233,7 +233,7 @@ func (err *Error) Error() string {
 		msg += fmt.Sprintf("%s(%d)", space, *err.Code)
 	}
 
-	if msg != "" {
+	if msg != "" && err.Err != nil {
 		msg += ": "
 	}
 
