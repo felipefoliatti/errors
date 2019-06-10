@@ -58,11 +58,11 @@ var MaxStackDepth = 50
 // Error is an error with an attached stacktrace. It can be used
 // wherever the builtin error interface is expected.
 type Error struct {
-	Err    error
-	Code   *int
-	stack  []uintptr
-	frames []StackFrame
-	prefix string
+	Err     error
+	Message *string
+	Code    *int
+	stack   []uintptr
+	frames  []StackFrame
 }
 
 // New makes an Error from the given value. If that value is already an
@@ -83,6 +83,29 @@ func New(e interface{}) *Error {
 	length := runtime.Callers(2, stack[:])
 	return &Error{
 		Err:   err,
+		stack: stack[:length],
+	}
+}
+
+// New makes an Error from the given value and error code. If that value is already an
+// error then it will be used directly, if not, it will be passed to
+// fmt.Errorf("%v"). The stacktrace will point to the line of code that
+// called New.
+func NewWithCode(e interface{}, code int) *Error {
+	var err error
+
+	switch e := e.(type) {
+	case error:
+		err = e
+	default:
+		err = fmt.Errorf("%v", e)
+	}
+
+	stack := make([]uintptr, MaxStackDepth)
+	length := runtime.Callers(2, stack[:])
+	return &Error{
+		Err:   err,
+		Code:  &code,
 		stack: stack[:length],
 	}
 }
@@ -115,50 +138,46 @@ func Wrap(e interface{}, skip int) *Error {
 	}
 }
 
-// WrapPrefix makes an Error from the given value. If that value is already an
+// WrapInner makes an Error from the given value. If that value is already an
 // error then it will be used directly, if not, it will be passed to
 // fmt.Errorf("%v"). The prefix parameter is used to add a prefix to the
 // error message when calling Error(). The skip parameter indicates how far
 // up the stack to start the stacktrace. 0 is from the current call,
 // 1 from its caller, etc.
-func WrapPrefix(e interface{}, prefix string, skip int) *Error {
-	if e == nil || e == (*Error)(nil) {
+func WrapInner(message string, inner interface{}, skip int) *Error {
+	if inner == nil || inner == (*Error)(nil) {
 		return nil
 	}
 
-	err := Wrap(e, 1+skip)
-
-	// if err.prefix != "" {
-	// 	prefix = fmt.Sprintf("%s: %s", prefix, err.prefix)
-	// }
+	err := Wrap(inner, 1+skip)
 
 	return &Error{
-		Err:    err,
-		stack:  err.stack,
-		prefix: prefix,
+		Err:     err,
+		Message: &message,
+		stack:   err.stack,
 	}
 
 }
 
-// WrapPrefixCode makes an Error from the given value. If that value is already an
+// WrapInnerWithCode makes an Error from the given value. If that value is already an
 // error then it will be used directly, if not, it will be passed to
 // fmt.Errorf("%v"). The prefix parameter is used to add a prefix to the
 // error message when calling Error(). The code parameter is the custom application error code
 // that application use - it can be any value. The skip parameter indicates how far
 // up the stack to start the stacktrace. 0 is from the current call,
 // 1 from its caller, etc.
-func WrapPrefixCode(e interface{}, prefix string, code int, skip int) *Error {
-	if e == nil || e == (*Error)(nil) {
+func WrapInnerWithCode(message string, code int, inner interface{}, skip int) *Error {
+	if inner == nil || inner == (*Error)(nil) {
 		return nil
 	}
 
-	err := Wrap(e, 1+skip)
+	err := Wrap(inner, 1+skip)
 
 	return &Error{
-		Err:    err,
-		Code:   &code,
-		stack:  err.stack,
-		prefix: prefix,
+		Err:     err,
+		Message: &message,
+		Code:    &code,
+		stack:   err.stack,
 	}
 
 }
@@ -216,40 +235,69 @@ func (err *Error) Root() error {
 // Error returns the underlying error's message.
 func (err *Error) Error() string {
 
-	//msg := err.Err.Error()
-	msg := ""
+	message := ""
 
-	if err.prefix != "" {
-		msg += err.prefix
-	}
-
-	if err.Code != nil {
-		space := ""
-
-		if msg != "" {
-			space = " "
+	switch err.Err.(type) {
+	case *Error:
+		//recursion
+		if err.Code == nil && err.Message != nil {
+			message += fmt.Sprintf("%s  --inner: %s", *err.Message, err.Err.Error())
+		} else if err.Code != nil && err.Message != nil {
+			message += fmt.Sprintf("%d - %s  --inner: %s", *err.Code, *err.Message, err.Err.Error())
+		} else {
+			message += err.Err.Error()
 		}
 
-		msg += fmt.Sprintf("%s(%d)", space, *err.Code)
+	case error:
+		//stop condigion
+		if err.Code != nil {
+			message += fmt.Sprintf("%d - %s", *err.Code, err.Err.Error())
+		} else {
+			message += err.Err.Error()
+		}
 	}
 
-	if msg != "" && err.Err != nil {
-		msg += ": "
-	}
+	// switch t := err.Err.(type) {
+	// case error:
 
-	if err.Err != nil {
-		msg += err.Err.Error()
-	}
+	// case *Error:
 
-	// if err.prefix != "" && err.Code != nil {
-	// 	msg = fmt.Sprintf("%s (%d): %s", err.prefix, *err.Code, msg)
-	// } else if err.prefix != "" {
-	// 	msg = fmt.Sprintf("%s: %s", err.prefix, msg)
-	// } else if err.Code != nil {
-	// 	msg = fmt.Sprintf("(%d): %s", err.Code, msg)
 	// }
 
-	return msg
+	// //msg := err.Err.Error()
+	// msg := ""
+
+	// if err.prefix != "" {
+	// 	msg += err.prefix
+	// }
+
+	// if err.Code != nil {
+	// 	space := ""
+
+	// 	if msg != "" {
+	// 		space = " "
+	// 	}
+
+	// 	msg += fmt.Sprintf("%s(%d)", space, *err.Code)
+	// }
+
+	// if msg != "" && err.Err != nil {
+	// 	msg += ": "
+	// }
+
+	// if err.Err != nil {
+	// 	msg += err.Err.Error()
+	// }
+
+	// // if err.prefix != "" && err.Code != nil {
+	// // 	msg = fmt.Sprintf("%s (%d): %s", err.prefix, *err.Code, msg)
+	// // } else if err.prefix != "" {
+	// // 	msg = fmt.Sprintf("%s: %s", err.prefix, msg)
+	// // } else if err.Code != nil {
+	// // 	msg = fmt.Sprintf("(%d): %s", err.Code, msg)
+	// // }
+
+	return message
 }
 
 // Stack returns the callstack formatted the same way that go does

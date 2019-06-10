@@ -14,6 +14,7 @@ func TestStackFormat(t *testing.T) {
 
 	defer func() {
 		err := recover()
+
 		if err != 'a' {
 			t.Fatal(err)
 		}
@@ -87,6 +88,32 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestNewWithCode(t *testing.T) {
+
+	err := NewWithCode("foo", 1010)
+
+	if err.Error() != "1010 - foo" {
+		t.Errorf("Wrong message")
+	}
+
+	err = NewWithCode(fmt.Errorf("foo"), 1010)
+
+	if err.Error() != "1010 - foo" {
+		t.Errorf("Wrong message")
+	}
+
+	bs := [][]uintptr{NewWithCode("foo", 1010).stack, callers()}
+
+	if err := compareStacks(bs[0], bs[1]); err != nil {
+		t.Errorf("Stack didn't match")
+		t.Errorf(err.Error())
+	}
+
+	if err.ErrorStack() != err.TypeName()+" "+err.Error()+"\n"+string(err.Stack()) {
+		t.Errorf("ErrorStack is in the wrong format")
+	}
+}
+
 func TestIs(t *testing.T) {
 
 	if Is(nil, io.EOF) {
@@ -138,24 +165,24 @@ func TestWrapError(t *testing.T) {
 	}
 }
 
-func TestWrapPrefixError(t *testing.T) {
+func TestWrapInnerError(t *testing.T) {
 
 	e := func() error {
-		return WrapPrefix("hi", "prefix", 1)
+		return WrapInner("outer", "inner", 1)
 	}()
 
-	if e.Error() != "prefix: hi" {
+	if e.Error() != "outer  --inner: inner" {
 		t.Errorf("Constructor with a string failed")
 	}
 
-	if WrapPrefix(fmt.Errorf("yo"), "prefix", 0).Error() != "prefix: yo" {
+	if WrapInner("yo", fmt.Errorf("inner"), 0).Error() != "yo  --inner: inner" {
 		t.Errorf("Constructor with an error failed")
 	}
 
-	prefixed := WrapPrefix(e, "prefix", 0)
+	prefixed := WrapInner("outer", e, 0)
 	original := e.(*Error)
 
-	if prefixed.Err.(*Error) != original || !reflect.DeepEqual(prefixed.Err.(*Error).stack, original.stack) || !reflect.DeepEqual(prefixed.Err.(*Error).frames, original.frames) || prefixed.Error() != "prefix: prefix: hi" {
+	if prefixed.Err.(*Error) != original || !reflect.DeepEqual(prefixed.Err.(*Error).stack, original.stack) || !reflect.DeepEqual(prefixed.Err.(*Error).frames, original.frames) || prefixed.Error() != "outer  --inner: outer  --inner: inner" {
 		t.Errorf("Constructor with an Error failed")
 	}
 
@@ -163,11 +190,11 @@ func TestWrapPrefixError(t *testing.T) {
 		t.Errorf("WrapPrefix changed the original error")
 	}
 
-	if WrapPrefix(nil, "prefix", 0) != nil {
+	if WrapInner("outer", nil, 0) != nil {
 		t.Errorf("Constructor with nil failed")
 	}
 
-	if WrapPrefix((*Error)(nil), "prefix", 0) != nil {
+	if WrapInner("outer", (*Error)(nil), 0) != nil {
 		t.Errorf("Constructor with typed nil failed")
 	}
 
@@ -176,24 +203,24 @@ func TestWrapPrefixError(t *testing.T) {
 	}
 }
 
-func TestWrapPrefixCodeError(t *testing.T) {
+func TestWrapInnerWithCodeError(t *testing.T) {
 
 	e := func() error {
-		return WrapPrefixCode("hi", "prefix", 130, 1)
+		return WrapInnerWithCode("outer", 130, "inner", 1)
 	}()
 
-	if e.Error() != "prefix (130): hi" {
+	if e.Error() != "130 - outer  --inner: inner" {
 		t.Errorf("Constructor with a string failed")
 	}
 
-	if WrapPrefixCode(fmt.Errorf("yo"), "prefix", 140, 0).Error() != "prefix (140): yo" {
+	if WrapInnerWithCode("outer", 140, fmt.Errorf("yo"), 0).Error() != "140 - outer  --inner: yo" {
 		t.Errorf("Constructor with an error failed")
 	}
 
-	prefixed := WrapPrefixCode(e, "prefix", 200, 0)
+	prefixed := WrapInnerWithCode("outer", 200, e, 0)
 	original := e.(*Error)
 
-	if prefixed.Err.(*Error) != original || !reflect.DeepEqual(prefixed.Err.(*Error).stack, original.stack) || !reflect.DeepEqual(prefixed.Err.(*Error).frames, original.frames) || prefixed.Error() != "prefix (200): prefix (130): hi" {
+	if prefixed.Err.(*Error) != original || !reflect.DeepEqual(prefixed.Err.(*Error).stack, original.stack) || !reflect.DeepEqual(prefixed.Err.(*Error).frames, original.frames) || prefixed.Error() != "200 - outer  --inner: 130 - outer  --inner: inner" {
 		t.Errorf("Constructor with an Error failed")
 	}
 
@@ -201,11 +228,11 @@ func TestWrapPrefixCodeError(t *testing.T) {
 		t.Errorf("WrapPrefix changed the original error")
 	}
 
-	if WrapPrefixCode(nil, "prefix", 190, 0) != nil {
+	if WrapInnerWithCode("outer", 190, nil, 0) != nil {
 		t.Errorf("Constructor with nil failed")
 	}
 
-	if WrapPrefixCode((*Error)(nil), "prefix", 191, 0) != nil {
+	if WrapInnerWithCode("outer", 191, (*Error)(nil), 0) != nil {
 		t.Errorf("Constructor with typed nil failed")
 	}
 
@@ -228,13 +255,13 @@ func TestHas(t *testing.T) {
 		t.Errorf("Wrong 'Has' second level")
 	}
 
-	wrap := WrapPrefix(err, "prefix", 0)
+	wrap := WrapInner("message", err, 0)
 
 	if !wrap.Has(io.ErrUnexpectedEOF) {
 		t.Errorf("Wrong 'Has' third level")
 	}
 
-	wwrap := WrapPrefix(wrap, "prefix", 0)
+	wwrap := WrapInner("message", wrap, 0)
 
 	if !wwrap.Has(io.ErrUnexpectedEOF) {
 		t.Errorf("Wrong 'Has' forth level")
@@ -255,12 +282,12 @@ func TestRoot(t *testing.T) {
 		t.Errorf("Wrong 'Root' first level")
 	}
 
-	wrap := WrapPrefix(err, "prefix", 0)
+	wrap := WrapInner("message", err, 0)
 
 	if _, ok := wrap.Root().(*CustomError); !ok {
 		t.Errorf("Wrong 'Root' second level")
 	}
-	wwrap := WrapPrefix(wrap, "prefix", 0)
+	wwrap := WrapInner("message", wrap, 0)
 
 	if _, ok := wwrap.Root().(*CustomError); !ok {
 		t.Errorf("Wrong 'Root' third level")
