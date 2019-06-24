@@ -1,1 +1,1 @@
-module errors
+module github.com/felipefoliatti/errors
